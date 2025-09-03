@@ -1,32 +1,7 @@
-export function buildPrompt({ name, program, experience, strength, goals, limit = 600 }) {
-  return `You are EVA, an admissions-essay assistant. Produce a concise, original draft aligned with the user's answers. Limit the total output to ≤${limit} words. Keep tone personal, clear, and structured.
-
-Guidelines:
-• Use the student's first name once in the intro.
-• Structure: hook (1 para) → experience (1–2 paras) → reflection/fit (1) → goals (1) → close (1).
-• Show 2 strengths and 2 actionable improvements after the draft.
-• If a specific school/program is provided, reflect relevant values/fit without clichés.
-• Keep language natural; avoid generic filler.
-
-User Data:
-name = ${name || ''}
-target_program = ${program || ''}
-signature_experience = ${experience || ''}
-key_strength = ${strength || ''}
-goals = ${goals || ''}
-word_limit = ${limit}
-
-Task: Write the draft, then add:
-"Pros (2):" ...
-"Next-step improvements (2):" ...`;
-}
-
-
----
-import axios from "axios";
-import { OpenAI } from "openai";
-import { supabase } from "../../lib/supabaseClient.js";
-import { buildPrompt } from "../../prompt.js";
+const axios = require("axios");
+const { OpenAI } = require("openai");
+const { supabase } = require("../../lib/supabaseClient.js");
+const { buildPrompt } = require("../../prompt.js");
 
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const PHONE_ID = process.env.META_PHONE_NUMBER_ID;
@@ -36,7 +11,7 @@ const CTA_UTM = process.env.CTA_UTM || "";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export async function handler(event, context) {
+const handler = async (event, context) => {
   try {
     if (event.httpMethod === "GET") {
       const params = new URLSearchParams(event.rawQuery || "");
@@ -153,10 +128,14 @@ export async function handler(event, context) {
     console.error(e);
     return { statusCode: 200, body: "ok" };
   }
-}
+};
+
+module.exports = { handler };
+
+// --- helper functions ---
 
 async function callMeta(method, url, data) {
-  const base = `https://graph.facebook.com/v21.0/${url}`;
+  const base = `https://graph.facebook.com/v17.0/${url}`;
   return axios({ method, url: base, data, headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } });
 }
 
