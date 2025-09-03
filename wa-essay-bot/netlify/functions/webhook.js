@@ -1,6 +1,5 @@
 const axios = require("axios");
 const { OpenAI } = require("openai");
-const { supabase } = require("../../lib/supabaseClient.js");
 const { buildPrompt } = require("../../prompt.js");
 
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
@@ -11,6 +10,11 @@ const CTA_UTM = process.env.CTA_UTM || "";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// --- in-memory fallback ---
+const sessions = new Map();
+const messages = [];
+
+// --- Netlify handler ---
 const handler = async (event, context) => {
   try {
     if (event.httpMethod === "GET") {
@@ -31,10 +35,10 @@ const handler = async (event, context) => {
     const body = JSON.parse(event.body || "{}");
     const entry = body?.entry?.[0];
     const changes = entry?.changes?.[0];
-    const messages = changes?.value?.messages;
-    if (!messages || !messages[0]) return { statusCode: 200, body: "ok" };
+    const messagesArray = changes?.value?.messages;
+    if (!messagesArray || !messagesArray[0]) return { statusCode: 200, body: "ok" };
 
-    const msg = messages[0];
+    const msg = messagesArray[0];
     const from = msg.from;
     const text = msg.text?.body?.trim() || "";
 
@@ -90,6 +94,7 @@ const handler = async (event, context) => {
         await reply('Please confirm by typing "yes" so I can start drafting.');
         return { statusCode: 200, body: "ok" };
       }
+
       await updateSession(from, { step: "generating" });
       await reply("Creating your draft… this takes around 30 seconds.");
 
@@ -125,7 +130,7 @@ const handler = async (event, context) => {
     await reply("Let’s pick up where we left off.");
     return { statusCode: 200, body: "ok" };
   } catch (e) {
-    console.error(e);
+    console.error("ERROR:", e);
     return { statusCode: 200, body: "ok" };
   }
 };
@@ -150,32 +155,21 @@ function splitMessage(str, max = 3500) {
   return parts;
 }
 
-async function getOrCreateSession(msisdn) {
-  const { data, error } = await supabase
-    .from("wa_sessions")
-    .select("*")
-    .eq("msisdn", msisdn)
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  if (data) return data;
+// --- Session + Logging (In-Memory) ---
 
-  const { data: created, error: insertErr } = await supabase
-    .from("wa_sessions")
-    .insert({ msisdn, step: "welcome" })
-    .select("*")
-    .single();
-  if (insertErr) throw insertErr;
-  return created;
+async function getOrCreateSession(msisdn) {
+  if (!sessions.has(msisdn)) {
+    sessions.set(msisdn, { msisdn, step: "welcome" });
+  }
+  return sessions.get(msisdn);
 }
 
 async function updateSession(msisdn, patch) {
-  patch.updated_at = new Date().toISOString();
-  const { error } = await supabase.from("wa_sessions").update(patch).eq("msisdn", msisdn);
-  if (error) console.error("updateSession error:", error);
+  const prev = sessions.get(msisdn) || {};
+  sessions.set(msisdn, { ...prev, ...patch, updated_at: new Date().toISOString() });
 }
 
 async function logMessage(msisdn, direction, message_text, meta) {
-  const { error } = await supabase.from("wa_messages").insert({ msisdn, direction, message_text, meta });
-  if (error) console.error("logMessage error:", error);
+  messages.push({ msisdn, direction, message_text, meta, ts: new Date().toISOString() });
+  console.log("Message log:", direction, message_text);
 }
