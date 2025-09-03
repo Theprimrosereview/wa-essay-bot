@@ -1,3 +1,28 @@
+export function buildPrompt({ name, program, experience, strength, goals, limit = 600 }) {
+  return `You are EVA, an admissions-essay assistant. Produce a concise, original draft aligned with the user's answers. Limit the total output to ≤${limit} words. Keep tone personal, clear, and structured.
+
+Guidelines:
+• Use the student's first name once in the intro.
+• Structure: hook (1 para) → experience (1–2 paras) → reflection/fit (1) → goals (1) → close (1).
+• Show 2 strengths and 2 actionable improvements after the draft.
+• If a specific school/program is provided, reflect relevant values/fit without clichés.
+• Keep language natural; avoid generic filler.
+
+User Data:
+name = ${name || ''}
+target_program = ${program || ''}
+signature_experience = ${experience || ''}
+key_strength = ${strength || ''}
+goals = ${goals || ''}
+word_limit = ${limit}
+
+Task: Write the draft, then add:
+"Pros (2):" ...
+"Next-step improvements (2):" ...`;
+}
+
+
+---
 import axios from "axios";
 import { OpenAI } from "openai";
 import { supabase } from "../../lib/supabaseClient.js";
@@ -13,7 +38,6 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function handler(event, context) {
   try {
-    // WhatsApp webhook verification (GET)
     if (event.httpMethod === "GET") {
       const params = new URLSearchParams(event.rawQuery || "");
       const mode = params.get("hub.mode");
@@ -25,7 +49,6 @@ export async function handler(event, context) {
       return { statusCode: 403, body: "Forbidden" };
     }
 
-    // Messages webhook (POST)
     if (event.httpMethod !== "POST") {
       return { statusCode: 405, body: "Method Not Allowed" };
     }
@@ -52,48 +75,48 @@ export async function handler(event, context) {
 
     if (step === "welcome") {
       await updateSession(from, { step: "q1_name" });
-      await reply("היי! אני EVA\nנכין יחד טיוטת חיבור קצרה ב-3 שלבים. מוכן/נה? (כן/לא)");
+      await reply("Hi! I’m EVA.\nLet’s write a short admissions essay in 3 quick steps. Ready to begin? (Yes/No)");
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q1_name") {
       const name = text || "Student";
       await updateSession(from, { name, step: "q2_program" });
-      await reply(`נעים להכיר, ${name}! לאיזו תוכנית/אוניברסיטה מיועד החיבור?`);
+      await reply(`Nice to meet you, ${name}! What university or program is this essay for?`);
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q2_program") {
       await updateSession(from, { target_program: text, step: "q3_experience" });
-      await reply("ספר/י על חוויה אחת משמעותית שתרצה/י לשלב (משפט-שניים).");
+      await reply("Tell me about one meaningful experience you’d like to include (1–2 sentences).");
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q3_experience") {
       await updateSession(from, { signature_experience: text, step: "q4_strength" });
-      await reply("איזו יכולת/ערך מרכזי הכי מאפיין אותך?");
+      await reply("What’s a personal strength or value that best describes you?");
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q4_strength") {
       await updateSession(from, { key_strength: text, step: "q5_goals" });
-      await reply("מה המטרה האקדמית/קרייריסטית שלך ל-3–5 השנים הקרובות?");
+      await reply("What are your academic or career goals for the next 3–5 years?");
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q5_goals") {
       await updateSession(from, { goals: text, step: "confirm_generate" });
-      await reply('להפיק טיוטה על בסיס התשובות? הקלד/י "כן" כדי לאשר.');
+      await reply('Want me to generate a draft based on your answers? Type "yes" to confirm.');
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "confirm_generate") {
-      if (!/^כן$|^y(es)?$/i.test(text)) {
-        await reply('אשר/י ב-"כן" כדי להפיק טיוטה.');
+      if (!/^yes$|^y$/i.test(text)) {
+        await reply('Please confirm by typing "yes" so I can start drafting.');
         return { statusCode: 200, body: "ok" };
       }
       await updateSession(from, { step: "generating" });
-      await reply("מכין טיוטה… זה לוקח כחצי דקה.");
+      await reply("Creating your draft… this takes around 30 seconds.");
 
       const fresh = await getOrCreateSession(from);
       const prompt = buildPrompt({
@@ -119,22 +142,18 @@ export async function handler(event, context) {
       for (const c of chunks) await reply(c);
 
       const ctaUrl = `${SITE_URL}?${CTA_UTM}`;
-      await reply(`רוצה שנלטש לפי דרישות ${fresh.target_program || "היעד"} + בדיקת עורך מקצועי? בקר/י באתר: ${ctaUrl}`);
+      await reply(`Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl}`);
       await updateSession(from, { step: "delivered" });
       return { statusCode: 200, body: "ok" };
     }
 
-    // Fallback
-    await reply("נמשיך מהיכן שהגענו.");
+    await reply("Let’s pick up where we left off.");
     return { statusCode: 200, body: "ok" };
   } catch (e) {
     console.error(e);
-    // אל תכשיל את וואטסאפ – החזר 200 גם בשגיאות
     return { statusCode: 200, body: "ok" };
   }
 }
-
-// —— Helpers ——
 
 async function callMeta(method, url, data) {
   const base = `https://graph.facebook.com/v21.0/${url}`;
