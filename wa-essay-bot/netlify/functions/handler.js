@@ -1,11 +1,18 @@
+// netlify/functions/handler.js
+
+import fetch from 'node-fetch';
+
+const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
+
 export async function handler(event, context) {
   if (event.httpMethod === 'GET') {
-    // שלב האימות מול Meta
     const params = event.queryStringParameters;
-    const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
-
-    if (params['hub.mode'] === 'subscribe' &&
-        params['hub.verify_token'] === VERIFY_TOKEN) {
+    if (
+      params['hub.mode'] === 'subscribe' &&
+      params['hub.verify_token'] === VERIFY_TOKEN
+    ) {
       return {
         statusCode: 200,
         body: params['hub.challenge']
@@ -13,17 +20,25 @@ export async function handler(event, context) {
     } else {
       return {
         statusCode: 403,
-        body: 'Forbidden'
+        body: 'Verification failed'
       };
     }
   }
 
   if (event.httpMethod === 'POST') {
-    // שלב קבלת הודעה מ-WhatsApp
     const body = JSON.parse(event.body);
-    console.log('📩 Webhook POST payload:', JSON.stringify(body, null, 2));
 
-    // כאן תוכל להתחיל את הלוגיקה: ניתוח המסר, קריאה ל-OpenAI, שליחה חזרה
+    const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    const from = message?.from;
+    const text = message?.text?.body;
+
+    if (from && text) {
+      console.log(`📩 Got message from ${from}: ${text}`);
+
+      // שליחת תשובה לבוט
+      await sendWhatsAppMessage(from, `היי 👋 כאן הבוט EVA. קיבלתי את ההודעה שלך: "${text}"`);
+    }
+
     return {
       statusCode: 200,
       body: 'EVENT_RECEIVED'
@@ -34,4 +49,25 @@ export async function handler(event, context) {
     statusCode: 404,
     body: 'Not Found'
   };
+}
+
+async function sendWhatsAppMessage(recipientPhoneNumberId, messageText) {
+  const response = await fetch(`https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: recipientPhoneNumberId,
+      type: 'text',
+      text: {
+        body: messageText
+      }
+    })
+  });
+
+  const result = await response.json();
+  console.log('📤 Sent response:', result);
 }
