@@ -1,4 +1,4 @@
-export function buildPrompt({ name, program, experience, strength, goals, limit = 600 }) {
+function buildPrompt({ name, program, experience, strength, goals, limit = 600 }) {
   return `You are EVA, an admissions-essay assistant. Produce a concise, original draft aligned with the user's answers. Limit the total output to ≤${limit} words. Keep tone personal, clear, and structured.
 
 Guidelines:
@@ -20,3 +20,5 @@ Task: Write the draft, then add:
 "Pros (2):" ...
 "Next-step improvements (2):" ...`;
 }
+
+module.exports = { buildPrompt };
