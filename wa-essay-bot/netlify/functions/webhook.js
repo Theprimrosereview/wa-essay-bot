@@ -10,11 +10,9 @@ const CTA_UTM = process.env.CTA_UTM || "";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// --- in-memory fallback ---
-const sessions = new Map();
-const messages = [];
+// ✅ Store sessions in memory
+const sessions = {};
 
-// --- Netlify handler ---
 const handler = async (event, context) => {
   try {
     if (event.httpMethod === "GET") {
@@ -35,56 +33,53 @@ const handler = async (event, context) => {
     const body = JSON.parse(event.body || "{}");
     const entry = body?.entry?.[0];
     const changes = entry?.changes?.[0];
-    const messagesArray = changes?.value?.messages;
-    if (!messagesArray || !messagesArray[0]) return { statusCode: 200, body: "ok" };
+    const messages = changes?.value?.messages;
+    if (!messages || !messages[0]) return { statusCode: 200, body: "ok" };
 
-    const msg = messagesArray[0];
+    const msg = messages[0];
     const from = msg.from;
     const text = msg.text?.body?.trim() || "";
 
-    await logMessage(from, "in", text, msg);
-
-    const session = await getOrCreateSession(from);
+    const session = getOrCreateSession(from);
     const { step } = session;
 
     const reply = async (t) => {
       await sendText(from, t);
-      await logMessage(from, "out", t);
     };
 
     if (step === "welcome") {
-      await updateSession(from, { step: "q1_name" });
+      updateSession(from, { step: "q1_name" });
       await reply("Hi! I’m EVA.\nLet’s write a short admissions essay in 3 quick steps. Ready to begin? (Yes/No)");
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q1_name") {
       const name = text || "Student";
-      await updateSession(from, { name, step: "q2_program" });
+      updateSession(from, { name, step: "q2_program" });
       await reply(`Nice to meet you, ${name}! What university or program is this essay for?`);
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q2_program") {
-      await updateSession(from, { target_program: text, step: "q3_experience" });
+      updateSession(from, { target_program: text, step: "q3_experience" });
       await reply("Tell me about one meaningful experience you’d like to include (1–2 sentences).");
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q3_experience") {
-      await updateSession(from, { signature_experience: text, step: "q4_strength" });
+      updateSession(from, { signature_experience: text, step: "q4_strength" });
       await reply("What’s a personal strength or value that best describes you?");
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q4_strength") {
-      await updateSession(from, { key_strength: text, step: "q5_goals" });
+      updateSession(from, { key_strength: text, step: "q5_goals" });
       await reply("What are your academic or career goals for the next 3–5 years?");
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q5_goals") {
-      await updateSession(from, { goals: text, step: "confirm_generate" });
+      updateSession(from, { goals: text, step: "confirm_generate" });
       await reply('Want me to generate a draft based on your answers? Type "yes" to confirm.');
       return { statusCode: 200, body: "ok" };
     }
@@ -94,11 +89,10 @@ const handler = async (event, context) => {
         await reply('Please confirm by typing "yes" so I can start drafting.');
         return { statusCode: 200, body: "ok" };
       }
-
-      await updateSession(from, { step: "generating" });
+      updateSession(from, { step: "generating" });
       await reply("Creating your draft… this takes around 30 seconds.");
 
-      const fresh = await getOrCreateSession(from);
+      const fresh = getOrCreateSession(from);
       const prompt = buildPrompt({
         name: fresh.name,
         program: fresh.target_program,
@@ -123,14 +117,14 @@ const handler = async (event, context) => {
 
       const ctaUrl = `${SITE_URL}?${CTA_UTM}`;
       await reply(`Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl}`);
-      await updateSession(from, { step: "delivered" });
+      updateSession(from, { step: "delivered" });
       return { statusCode: 200, body: "ok" };
     }
 
     await reply("Let’s pick up where we left off.");
     return { statusCode: 200, body: "ok" };
   } catch (e) {
-    console.error("ERROR:", e);
+    console.error(e);
     return { statusCode: 200, body: "ok" };
   }
 };
@@ -155,21 +149,15 @@ function splitMessage(str, max = 3500) {
   return parts;
 }
 
-// --- Session + Logging (In-Memory) ---
+// --- in-memory session management ---
 
-async function getOrCreateSession(msisdn) {
-  if (!sessions.has(msisdn)) {
-    sessions.set(msisdn, { msisdn, step: "welcome" });
+function getOrCreateSession(msisdn) {
+  if (!sessions[msisdn]) {
+    sessions[msisdn] = { step: "welcome" };
   }
-  return sessions.get(msisdn);
+  return sessions[msisdn];
 }
 
-async function updateSession(msisdn, patch) {
-  const prev = sessions.get(msisdn) || {};
-  sessions.set(msisdn, { ...prev, ...patch, updated_at: new Date().toISOString() });
-}
-
-async function logMessage(msisdn, direction, message_text, meta) {
-  messages.push({ msisdn, direction, message_text, meta, ts: new Date().toISOString() });
-  console.log("Message log:", direction, message_text);
+function updateSession(msisdn, patch) {
+  sessions[msisdn] = { ...sessions[msisdn], ...patch };
 }
