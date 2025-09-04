@@ -139,6 +139,7 @@ async function callMeta(method, url, data) {
 }
 
 async function sendText(to, text) {
+ console.log("📦 ACCESS_TOKEN is:", ACCESS_TOKEN); 
   const payload = { messaging_product: "whatsapp", to, type: "text", text: { body: text } };
   await callMeta("POST", `${PHONE_ID}/messages`, payload);
 }
