@@ -139,9 +139,19 @@ async function callMeta(method, url, data) {
 }
 
 async function sendText(to, text) {
- console.log("📦 ACCESS_TOKEN is:", ACCESS_TOKEN); 
-  const payload = { messaging_product: "whatsapp", to, type: "text", text: { body: text } };
-  await callMeta("POST", `${PHONE_ID}/messages`, payload);
+  const payload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "text",
+    text: { body: text },
+  };
+
+  try {
+    const res = await callMeta("POST", `${PHONE_ID}/messages`, payload);
+    console.log("✅ Message sent:", res.data);
+  } catch (err) {
+    console.error("❌ Failed to send WhatsApp message:", err?.response?.data || err.message || err);
+  }
 }
 
 function splitMessage(str, max = 3500) {
