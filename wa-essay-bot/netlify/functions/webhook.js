@@ -2,8 +2,6 @@ const axios = require("axios");
 const { OpenAI } = require("openai");
 const { buildPrompt } = require("../../prompt.js");
 
-module.exports = { handler }; // ✅ צריך להיות כאן – לפני פונקציות העזר
-
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const PHONE_ID = process.env.META_PHONE_NUMBER_ID;
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
@@ -40,7 +38,7 @@ const handler = async (event, context) => {
     const from = msg.from;
     const text = msg.text?.body?.trim() || "";
 
-    // ✅ טיפול מיוחד אם המשתמש כותב "Prompt now"
+    // ✅ אם נשלח Prompt now
     if (text.toLowerCase() === "prompt now") {
       const fresh = getOrCreateSession(from);
 
@@ -75,7 +73,7 @@ const handler = async (event, context) => {
       return { statusCode: 200, body: "ok" };
     }
 
-    // ✅ המשך תהליך רגיל לפי שלבים
+    // ✅ המשך תהליך רגיל
     const session = getOrCreateSession(from);
     const { step } = session;
 
@@ -203,5 +201,8 @@ function getOrCreateSession(msisdn) {
 }
 
 function updateSession(msisdn, patch) {
-  sessions[msisdn] = { ...sessions[msisdn], ...patch };
+  sessions[msisdn] = { ...sessions[msisdn], ...patch };
 }
+
+// ✅ export בסוף בלבד
+module.exports = { handler };
