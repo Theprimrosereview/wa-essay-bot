@@ -2,6 +2,8 @@ const axios = require("axios");
 const { OpenAI } = require("openai");
 const { buildPrompt } = require("../../prompt.js");
 
+module.exports = { handler }; // ✅ צריך להיות כאן – לפני פונקציות העזר
+
 const ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const PHONE_ID = process.env.META_PHONE_NUMBER_ID;
 const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
@@ -163,8 +165,6 @@ const handler = async (event, context) => {
     return { statusCode: 200, body: "ok" };
   }
 };
-
-module.exports = { handler };
 
 // === 📦 פונקציות עזר ===
 
