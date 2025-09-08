@@ -9,9 +9,7 @@ const SITE_URL = process.env.PUBLIC_SITE_URL;
 const CTA_UTM = process.env.CTA_UTM || "";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// ✅ Store sessions in memory
-const sessions = {};
+const sessions = {}; // ✅ זיכרון זמני לשיחות
 
 const handler = async (event, context) => {
   try {
@@ -40,6 +38,42 @@ const handler = async (event, context) => {
     const from = msg.from;
     const text = msg.text?.body?.trim() || "";
 
+    // ✅ טיפול מיוחד אם המשתמש כותב "Prompt now"
+    if (text.toLowerCase() === "prompt now") {
+      const fresh = getOrCreateSession(from);
+
+      const prompt = buildPrompt({
+        name: fresh.name || "Student",
+        program: fresh.target_program || "your program",
+        experience: fresh.signature_experience || "your experience",
+        strength: fresh.key_strength || "your strength",
+        goals: fresh.goals || "your goals",
+        limit: fresh.word_limit || 600,
+      });
+
+      await sendText(from, "Creating your draft… this takes around 30 seconds.");
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are EVA, an admissions-essay assistant." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.6,
+      });
+
+      const draft = completion.choices?.[0]?.message?.content || "Draft unavailable.";
+      const chunks = splitMessage(draft, 3500);
+      for (const c of chunks) await sendText(from, c);
+
+      const ctaUrl = ${SITE_URL}?${CTA_UTM};
+      await sendText(from, Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl});
+      updateSession(from, { step: "delivered" });
+
+      return { statusCode: 200, body: "ok" };
+    }
+
+    // ✅ המשך תהליך רגיל לפי שלבים
     const session = getOrCreateSession(from);
     const { step } = session;
 
@@ -56,7 +90,7 @@ const handler = async (event, context) => {
     if (step === "q1_name") {
       const name = text || "Student";
       updateSession(from, { name, step: "q2_program" });
-      await reply(`Nice to meet you, ${name}! What university or program is this essay for?`);
+      await reply(Nice to meet you, ${name}! What university or program is this essay for?);
       return { statusCode: 200, body: "ok" };
     }
 
@@ -115,14 +149,15 @@ const handler = async (event, context) => {
       const chunks = splitMessage(draft, 3500);
       for (const c of chunks) await reply(c);
 
-      const ctaUrl = `${SITE_URL}?${CTA_UTM}`;
-      await reply(`Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl}`);
+      const ctaUrl = ${SITE_URL}?${CTA_UTM};
+      await reply(Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl});
       updateSession(from, { step: "delivered" });
       return { statusCode: 200, body: "ok" };
     }
 
     await reply("Let’s pick up where we left off.");
     return { statusCode: 200, body: "ok" };
+
   } catch (e) {
     console.error(e);
     return { statusCode: 200, body: "ok" };
@@ -131,11 +166,11 @@ const handler = async (event, context) => {
 
 module.exports = { handler };
 
-// --- helper functions ---
+// === 📦 פונקציות עזר ===
 
 async function callMeta(method, url, data) {
-  const base = `https://graph.facebook.com/v17.0/${url}`;
-  return axios({ method, url: base, data, headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } });
+  const base = https://graph.facebook.com/v17.0/${url};
+  return axios({ method, url: base, data, headers: { Authorization: Bearer ${ACCESS_TOKEN} } });
 }
 
 async function sendText(to, text) {
@@ -147,7 +182,7 @@ async function sendText(to, text) {
   };
 
   try {
-    const res = await callMeta("POST", `${PHONE_ID}/messages`, payload);
+    const res = await callMeta("POST", ${PHONE_ID}/messages, payload);
     console.log("✅ Message sent:", res.data);
   } catch (err) {
     console.error("❌ Failed to send WhatsApp message:", err?.response?.data || err.message || err);
@@ -160,8 +195,6 @@ function splitMessage(str, max = 3500) {
   return parts;
 }
 
-// --- in-memory session management ---
-
 function getOrCreateSession(msisdn) {
   if (!sessions[msisdn]) {
     sessions[msisdn] = { step: "welcome" };
@@ -170,5 +203,5 @@ function getOrCreateSession(msisdn) {
 }
 
 function updateSession(msisdn, patch) {
-  sessions[msisdn] = { ...sessions[msisdn], ...patch };
+  sessions[msisdn] = { ...sessions[msisdn], ...patch };
 }
