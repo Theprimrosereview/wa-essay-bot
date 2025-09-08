@@ -65,7 +65,7 @@ const handler = async (event, context) => {
       const chunks = splitMessage(draft, 3500);
       for (const c of chunks) await sendText(from, c);
 
-      const ctaUrl = ${SITE_URL}?${CTA_UTM};
+     const ctaUrl = `${SITE_URL}${CTA_UTM ? ?${CTA_UTM} : ''}`;
       await sendText(from, Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl});
       updateSession(from, { step: "delivered" });
 
