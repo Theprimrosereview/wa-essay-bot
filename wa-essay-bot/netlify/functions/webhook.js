@@ -63,12 +63,12 @@ const handler = async (event, context) => {
         temperature: 0.6,
       });
 
-      const draft = completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
-      const chunks = splitMessage(draft || "Draft unavailable.", 3500);
+      const draft = (completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content) || "Draft unavailable.";
+      const chunks = splitMessage(draft, 3500);
       for (const c of chunks) await sendText(from, c);
 
-      const ctaUrl = SITE_URL + (CTA_UTM ? ?${CTA_UTM} : "");
-      await sendText(from, Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl});
+      const ctaUrl = SITE_URL + (CTA_UTM ? CTA_UTM : "");
+      await sendText(from, `Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl}`);
       updateSession(from, { step: "delivered" });
 
       return { statusCode: 200, body: "ok" };
@@ -88,13 +88,13 @@ const handler = async (event, context) => {
     if (step === "q1_name") {
       const name = text || "Student";
       updateSession(from, { name, step: "q2_program" });
-      await reply(Nice to meet you, ${name}! What university or program is this essay for?);
+      await reply(`Nice to meet you, ${name}! What university or program is this essay for?`);
       return { statusCode: 200, body: "ok" };
     }
 
     if (step === "q2_program") {
       updateSession(from, { target_program: text, step: "q3_experience" });
-      await reply("Tell me about one meaningful experience you’d like to include (1–2 sentences).“);
+      await reply("Tell me about one meaningful experience you’d like to include (1–2 sentences).");
       return { statusCode: 200, body: "ok" };
     }
 
@@ -121,6 +121,7 @@ const handler = async (event, context) => {
         await reply('Please confirm by typing "yes" so I can start drafting.');
         return { statusCode: 200, body: "ok" };
       }
+
       updateSession(from, { step: "generating" });
       await reply("Creating your draft… this takes around 30 seconds.");
 
@@ -143,12 +144,12 @@ const handler = async (event, context) => {
         temperature: 0.6,
       });
 
-      const draft = completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
-      const chunks = splitMessage(draft || "Draft unavailable.", 3500);
+      const draft = (completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content) || "Draft unavailable.";
+      const chunks = splitMessage(draft, 3500);
       for (const c of chunks) await reply(c);
 
-      const ctaUrl = SITE_URL + (CTA_UTM ? ?${CTA_UTM} : "");
-      await reply(Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl});
+      const ctaUrl = SITE_URL + (CTA_UTM ? CTA_UTM : "");
+      await reply(`Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl}`);
       updateSession(from, { step: "delivered" });
       return { statusCode: 200, body: "ok" };
     }
@@ -162,8 +163,15 @@ const handler = async (event, context) => {
 };
 
 async function callMeta(method, url, data) {
-  const base = https://graph.facebook.com/v17.0/${url};
-  return axios({ method, url: base, data, headers: { Authorization: Bearer ${ACCESS_TOKEN} } });
+  const base = `https://graph.facebook.com/v17.0/${url}`;
+  return axios({
+    method,
+    url: base,
+    data,
+    headers: {
+      Authorization: `Bearer ${ACCESS_TOKEN}`,
+    },
+  });
 }
 
 async function sendText(to, text) {
@@ -175,7 +183,7 @@ async function sendText(to, text) {
   };
 
   try {
-    const res = await callMeta("POST", ${PHONE_ID}/messages, payload);
+    const res = await callMeta("POST", `${PHONE_ID}/messages`, payload);
     console.log("✅ Message sent:", res.data);
   } catch (err) {
     console.error("❌ Failed to send WhatsApp message:", err && err.response && err.response.data || err.message || err);
@@ -184,7 +192,9 @@ async function sendText(to, text) {
 
 function splitMessage(str, max = 3500) {
   const parts = [];
-  for (let i = 0; i < str.length; i += max) parts.push(str.slice(i, i + max));
+  for (let i = 0; i < str.length; i += max) {
+    parts.push(str.slice(i, i + max));
+  }
   return parts;
 }
 
@@ -199,4 +209,4 @@ function updateSession(msisdn, patch) {
   sessions[msisdn] = Object.assign({}, sessions[msisdn], patch);
 }
 
-module.exports = { handler };
+module.exports = { handler };
