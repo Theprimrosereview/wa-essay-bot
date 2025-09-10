@@ -1,3 +1,4 @@
+console.log("🔥 Running current webhook.js version");
 const axios = require("axios");
 const { OpenAI } = require("openai");
 const { buildPrompt } = require("../../prompt.js");
