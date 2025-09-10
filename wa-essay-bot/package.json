@@ -1,7 +1,7 @@
 {
   "name": "wa-essay-bot",
   "version": "0.1.0",
-  "type": "module",
+  "type": "commonjs",
   "main": "netlify/functions/webhook.js",
   "scripts": {
     "dev": "netlify dev",
