@@ -81,10 +81,10 @@ const handler = async (event, context) => {
     const reply = async (t) => await sendText(from, t);
 
     if (step === "welcome") {
-      updateSession(from, { step: "q1_name" });
-      await reply("Hi! I’m EVA.\nLet’s write a short admissions essay in 3 quick steps. Ready to begin? (Yes/No)");
-      return { statusCode: 200, body: "ok" };
-    }
+  updateSession(from, { step: "q1_name" });
+  await reply("Hi! I’m EVA 👋\nLet’s write a short admissions essay together.\nFirst, what’s your *first name*?");
+  return { statusCode: 200, body: "ok" };
+}
 
     if (step === "q1_name") {
       const name = text || "Student";
@@ -149,8 +149,7 @@ const handler = async (event, context) => {
       const chunks = splitMessage(draft, 3500);
       for (const c of chunks) await reply(c);
 
-      const ctaUrl = SITE_URL + (CTA_UTM ? CTA_UTM : "");
-      await reply(`Want professional feedback or polishing for ${fresh.target_program || "your program"}? Visit: ${ctaUrl}`);
+      await reply("Want professional feedback or polishing?\nExplore full support plans here: https://theprimrosereview.com/plans");
       updateSession(from, { step: "delivered" });
       return { statusCode: 200, body: "ok" };
     }
